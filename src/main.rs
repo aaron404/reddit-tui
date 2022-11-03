@@ -105,10 +105,10 @@ impl App {
                             Some(8),
                             Some(100),
                         );
-                        eprintln!(
-                            "{:?}",
-                            article.unwrap().data.children.first().unwrap().data.body
-                        );
+                        // eprintln!(
+                        //     "{:?}",
+                        //     article.unwrap().data.children.first().unwrap().data.body
+                        // );
                         self.view_state = ViewState::Post;
                     }
                 }
@@ -116,6 +116,11 @@ impl App {
             ViewState::Post => todo!(),
         }
     }
+
+    fn back(&mut self) {
+        self.view_state = ViewState::Subreddit;
+    }
+
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -168,6 +173,7 @@ fn run_app<B: Backend>(
                         KeyCode::Down => app.submissions.next(),
                         KeyCode::Up => app.submissions.previous(),
                         KeyCode::Enter => app.select(),
+                        KeyCode::Esc | KeyCode::Backspace => app.back(),
                         _ => {}
                     }
                 } else if let Event::Resize(w, h) = evt {
@@ -188,6 +194,7 @@ fn run_app<B: Backend>(
                             title: c.data.title.clone(),
                             score: c.data.score,
                             id: c.data.id.clone(),
+                            selftext: c.data.selftext.clone(),
                         })
                         .collect(),
                 );
@@ -204,6 +211,7 @@ struct Submission {
     title: String,
     score: f64,
     id: String,
+    selftext: String,
 }
 
 fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
@@ -228,8 +236,10 @@ fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
         }
         ViewState::Post => {
             // let paragraph = frame.render_widget();
-            let paragraph = tui::widgets::Paragraph::new("post")
-                .block(Block::default().borders(Borders::ALL).title("Post"));
+            let paragraph = tui::widgets::Paragraph::new(
+                app.selection.as_ref().unwrap().selftext.clone(),
+            )
+            .block(Block::default().borders(Borders::ALL).title("Post"));
             let area = frame.size();
             frame.render_widget(paragraph, area);
         }
