@@ -62,24 +62,60 @@ impl<T> StatefulList<T> {
     }
 }
 
-/// This struct holds the current state of the app. In particular, it has the `items` field which is a wrapper
-/// around `ListState`. Keeping track of the items state let us render the associated widget with its state
-/// and have access to features such as natural scrolling.
-///
-/// Check the event handling at the bottom to see how to change the state on incoming events.
-/// Check the drawing logic for items on how to specify the highlighting style for selected items.
+enum SubSort {
+    Hot,
+    Rising,
+    Popular,
+}
+
+enum ViewState {
+    Subreddit,
+    Post,
+}
+
 struct App {
     submissions: StatefulList<Submission>,
+    view_state: ViewState,
+    selection: Option<Submission>,
+    subreddit: Subreddit,
+    // comments: roux::Comments,
 }
 
 impl App {
     fn new() -> App {
         App {
             submissions: StatefulList::with_items(Vec::new()),
+            view_state: ViewState::Subreddit,
+            selection: None,
+            subreddit: Subreddit::new("rust"),
+            // comments: roux::Comments::from(""),
         }
     }
 
     fn on_tick(&mut self) {}
+
+    fn select(&mut self) {
+        match self.view_state {
+            ViewState::Subreddit => {
+                if self.submissions.items.len() > 0 {
+                    if let Some(i) = self.submissions.state.selected() {
+                        self.selection = Some(self.submissions.items.get(i).unwrap().clone());
+                        let article = self.subreddit.article_comments(
+                            &self.selection.as_ref().unwrap().id,
+                            Some(8),
+                            Some(100),
+                        );
+                        eprintln!(
+                            "{:?}",
+                            article.unwrap().data.children.first().unwrap().data.body
+                        );
+                        self.view_state = ViewState::Post;
+                    }
+                }
+            }
+            ViewState::Post => todo!(),
+        }
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -131,6 +167,7 @@ fn run_app<B: Backend>(
                         KeyCode::Left => app.submissions.unselect(),
                         KeyCode::Down => app.submissions.next(),
                         KeyCode::Up => app.submissions.previous(),
+                        KeyCode::Enter => app.select(),
                         _ => {}
                     }
                 } else if let Event::Resize(w, h) = evt {
@@ -140,11 +177,9 @@ fn run_app<B: Backend>(
         }
         if last_tick.elapsed() >= tick_rate {
             if app.submissions.items.len() < 10 {
-                let sub = Subreddit::new("rust");
-
-                // let items = vec![ListItem::new("Item 1"), ListItem::new("Item 2")];
                 app.submissions = StatefulList::with_items(
-                    sub.top(25, None)
+                    app.subreddit
+                        .top(25, None)
                         .unwrap()
                         .data
                         .children
@@ -164,6 +199,7 @@ fn run_app<B: Backend>(
     }
 }
 
+#[derive(Clone)]
 struct Submission {
     title: String,
     score: f64,
@@ -171,20 +207,31 @@ struct Submission {
 }
 
 fn ui<B: Backend>(frame: &mut Frame<B>, app: &mut App) {
-    let list: Vec<ListItem> = app
-        .submissions
-        .items
-        .iter()
-        .map(|i| ListItem::new(i.title.clone()))
-        .collect();
-    let list = List::new(list)
-        .block(Block::default().borders(Borders::ALL).title("Posts"))
-        .highlight_style(
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
-    let area = frame.size();
-    frame.render_stateful_widget(list, area, &mut app.submissions.state);
+    match app.view_state {
+        ViewState::Subreddit => {
+            let list: Vec<ListItem> = app
+                .submissions
+                .items
+                .iter()
+                .map(|i| ListItem::new(i.title.clone()))
+                .collect();
+            let list = List::new(list)
+                .block(Block::default().borders(Borders::ALL).title("Posts"))
+                .highlight_style(
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("▶ ");
+            let area = frame.size();
+            frame.render_stateful_widget(list, area, &mut app.submissions.state);
+        }
+        ViewState::Post => {
+            // let paragraph = frame.render_widget();
+            let paragraph = tui::widgets::Paragraph::new("post")
+                .block(Block::default().borders(Borders::ALL).title("Post"));
+            let area = frame.size();
+            frame.render_widget(paragraph, area);
+        }
+    }
 }
